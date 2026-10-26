@@ -1,0 +1,32 @@
+.idea/
+.DS_Store
+
+# OpenTofu
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+*.tfvars
+!*.tfvars.example
+
+# Talos
+talos/secrets/
+talos/generated/
+kubeconfig*
+talosconfig*
+
+# Ansible
+*.retry
+.vault_pass
+vault-password*
+
+# Local
+.env
+.env.*
+*.key
+*.pem
