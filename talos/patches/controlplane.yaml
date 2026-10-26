@@ -1,0 +1,37 @@
+# Applied to talos-cp-1 only.
+machine:
+  type: controlplane
+  certSANs:
+    - talos-cp-1
+    - 192.168.178.240
+  # Restore the labels that the KubeNodeConfig document would normally set,
+  # because that document is removed below so that Talos derives taints from
+  # cluster.allowSchedulingOnControlPlanes instead.
+  nodeLabels:
+    node-role.kubernetes.io/control-plane: ""
+    node.kubernetes.io/exclude-from-external-load-balancers: ""
+  network:
+    interfaces:
+      - interface: ens18
+        addresses:
+          - 192.168.178.240/24
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 192.168.178.1
+cluster:
+  # Single control plane: allow workloads on it.
+  allowSchedulingOnControlPlanes: true
+---
+# Drop the generated KubeNodeConfig document. Keeping it makes
+# cluster.allowSchedulingOnControlPlanes a conflict, and its control-plane
+# taint cannot be deleted with a patch because Talos adds it afterwards.
+apiVersion: v1alpha1
+kind: KubeNodeConfig
+$patch: delete
+---
+# HostnameConfig defaults to auto: stable, which conflicts with a static name.
+apiVersion: v1alpha1
+kind: HostnameConfig
+auto:
+  $patch: delete
+hostname: talos-cp-1

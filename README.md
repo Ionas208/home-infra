@@ -8,28 +8,27 @@ kubeconfigs, API tokens, private keys, or unencrypted Ansible secrets.
 
 ## Status
 
-**Phase 0: documentation only.**
+**Phase 1A: control plane running.**
 
-No OpenTofu, Talos, or Ansible implementation exists yet. The implementation scaffold
-that was drafted early has been preserved outside the repository and will be
-reintroduced in Phase 1.
+- Proxmox VM `talos-cp-1` (ID 101) is provisioned by OpenTofu
+- Talos v1.14.4, Kubernetes v1.37.1, single-node etcd
+- Node is `Ready`, untainted, and schedulable
+- Workers and Argo CD are Phase 1B/1C
 
 ## Documentation
 
 - [`docs/README.md`](docs/README.md) — documentation index
-- [`docs/bootstrap.md`](docs/bootstrap.md) — target Phase 1 bootstrap runbook
+- [`docs/bootstrap.md`](docs/bootstrap.md) — Phase 1 bootstrap runbook
 - [`docs/network.md`](docs/network.md) — address plan, DNS, ingress, QNAP, firewall
 - [`docs/inventory.md`](docs/inventory.md) — Proxmox host, QNAP, Talos VM sizing
 
-## Planned structure
-
-Created in Phase 1, not present now:
+## Structure
 
 ```text
-tofu/          Proxmox VM provisioning
-talos/         Talos machine config patches and generation scripts
-ansible/       Proxmox host configuration
+tofu/          Proxmox VM provisioning (envs/proxmox + modules/proxmox-vm)
+talos/         machine config patches and the generator script
 bootstrap/     day-0 scripts
+ansible/       Proxmox host configuration (not used yet)
 ```
 
 ## Phase 1 target
@@ -41,6 +40,23 @@ bootstrap/     day-0 scripts
 
 The current cluster is disposable. When the new server arrives, rebuild with the control
 plane on the new host.
+
+## Secrets
+
+Committed: `tofu/envs/proxmox/terraform.tfvars` (IPs, VM IDs, sizing).
+
+Never committed, all gitignored:
+
+- `tofu/` state and `.terraform/`
+- `talos/secrets/secrets.yaml`
+- `talos/generated/` (machine configs, talosconfig)
+- kubeconfig
+
+The Proxmox API token comes from the environment:
+
+```bash
+export PROXMOX_VE_API_TOKEN="tofu@pve!tofu=<secret>"
+```
 
 ## Placeholders
 

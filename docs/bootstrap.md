@@ -1,7 +1,8 @@
 # Bootstrap
 
-> Status: target Phase 1 runbook. The OpenTofu module, Talos patches, and scripts
-> referenced below are not in the repository yet. They are added when Phase 1 starts.
+> Status: Phase 1 runbook. The control plane is deployed; the worker steps are
+> Phase 1B. All addresses are placeholders in the documentation; the committed
+> `tofu/envs/proxmox/terraform.tfvars` holds the real values.
 
 End-to-end day-0 sequence. This repository creates the hosts and the Talos cluster;
 Argo CD then reconciles `home-gitops`.
@@ -33,7 +34,10 @@ All addresses are placeholders. Replace them before running anything.
 5. Create an API token for OpenTofu:
    - Datacenter -> Permissions -> API Tokens
    - user: a dedicated automation user, not `root@pam`
-   - privileges: VM allocate/config, datastore allocate, pool use
+   - role privileges: `VM.*`, `Datastore.AllocateSpace`, `Datastore.Audit`,
+     `Sys.Audit`, `SDN.Use`
+   - assign the role to the token or its user and group, with propagate on `/`
+   - `SDN.Use` is required to attach a NIC to `vmbr0`
    - export it as `PROXMOX_VE_API_TOKEN`
 6. Upload the Talos ISO to `local:iso/`.
 7. Optional: run the Ansible playbook:
@@ -46,20 +50,24 @@ All addresses are placeholders. Replace them before running anything.
 
 ```bash
 cd tofu/envs/proxmox
-cp terraform.tfvars.example terraform.tfvars
-# edit endpoint, node name, ISO, VM definitions
 tofu init
 tofu plan
 tofu apply
 ```
 
+`terraform.tfvars` is committed and holds the VM inventory. Phase 1A contains only
+the control plane; worker entries are added in Phase 1B, which makes `tofu plan`
+show exactly two creates and no changes to `talos-cp-1`.
+
 Expected VMs:
 
 | Name | Role | vCPU | RAM | Disk |
 |---|---|---|---|---|
-| `talos-cp-1` | control plane | 2 | 4 GB | 40 GB |
-| `talos-worker-1` | worker | 2 | 6 GB | 50 GB |
-| `talos-worker-2` | worker | 2 | 6 GB | 50 GB |
+| `talos-cp-1` | control plane | 2 | 4 GB | 30 GB |
+| `talos-worker-1` | worker | 2 | 6 GB | 40 GB |
+| `talos-worker-2` | worker | 2 | 6 GB | 40 GB |
+
+Total 110 GiB on a 130 GiB thin pool.
 
 The VMs boot the Talos ISO. OpenTofu only creates the shells; Talos configuration is
 applied with `talosctl`.
@@ -68,41 +76,45 @@ applied with `talosctl`.
 
 ```bash
 cd talos
-export TALOS_VERSION=REPLACE_ME
-export CLUSTER_ENDPOINT=https://192.0.2.10:6443
 ./generate.sh
 ```
+
+Defaults: cluster `home`, control-plane endpoint `https://192.168.178.240:6443`.
+Override with `CLUSTER_NAME` or `CP_IP` if needed.
 
 This creates:
 
 ```text
-talos/secrets/secrets.yaml     # gitignored; back this up
-talos/generated/cp-1.yaml
-talos/generated/worker-1.yaml
-talos/generated/worker-2.yaml
+talos/secrets/secrets.yaml        # gitignored; back this up
+talos/generated/talos-cp-1.yaml   # machine config
+talos/generated/talosconfig       # client credentials
 ```
 
-The generated configs include the `siderolabs/nfs-utils` extension and the static
-address patches in `talos/patches/`.
+Talos 1.14 emits a multi-document machine config. Fields that moved into their own
+documents (`HostnameConfig`, `ResolverConfig`, `UnattendedInstallConfig`,
+`KubeNodeConfig`) must be patched in those documents; duplicating them in the
+legacy document is rejected at apply time. The specific conflicts and their
+workarounds are commented in `talos/patches/`.
 
 Back up `talos/secrets/secrets.yaml` to BSM and the offline recovery kit. Never commit it.
 
 ## 4. Bootstrap the cluster
 
+Talos first boots into maintenance mode and uses **DHCP**, so the VM answers on a
+lease, not on its final static address. Find that lease, then pass it:
+
 ```bash
-cd ..
-export TALOS_CP_IP=192.0.2.10
-export TALOS_WORKER1_IP=192.0.2.11
-export TALOS_WORKER2_IP=192.0.2.12
+export MAINTENANCE_IP=<DHCP_LEASE>
 ./bootstrap/02-talos.sh
 ```
 
 The script:
 
-1. applies the control-plane config
-2. bootstraps etcd
-3. joins the two workers
-4. writes `~/.kube/config`
+1. applies the control-plane config (installs to `/dev/sda`, then reboots)
+2. waits for the node on `CP_IP`
+3. bootstraps etcd
+4. writes `~/.kube/config` and renames the context to `home`
+5. waits for `kubectl get nodes`
 
 Verify:
 

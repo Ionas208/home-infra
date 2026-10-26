@@ -1,0 +1,10 @@
+# Applied to every Talos node.
+#
+# Talos 1.14 emits a multi-document config, so fields that moved into their own
+# document must be patched there. Legacy fields that duplicate a document are
+# rejected with "already set in v1alpha1 config".
+apiVersion: v1alpha1
+kind: ResolverConfig
+nameservers:
+  # FRITZ!Box until the in-cluster CoreDNS/forwarder exists.
+  - address: 192.168.178.1

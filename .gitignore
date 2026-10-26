@@ -11,8 +11,10 @@ override.tf
 override.tf.json
 *_override.tf
 *_override.tf.json
-*.tfvars
-!*.tfvars.example
+# terraform.tfvars is committed on purpose: it holds only non-secret values.
+# Personal overrides and anything sensitive must use the suffix below or env vars.
+*.local.tfvars
+*.auto.tfvars
 
 # Talos
 talos/secrets/
