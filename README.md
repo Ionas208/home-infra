@@ -8,12 +8,12 @@ kubeconfigs, API tokens, private keys, or unencrypted Ansible secrets.
 
 ## Status
 
-**Phase 1A: control plane running.**
+**Three-node cluster running.**
 
-- Proxmox VM `talos-cp-1` (ID 101) is provisioned by OpenTofu
-- Talos v1.14.4, Kubernetes v1.37.1, single-node etcd
-- Node is `Ready`, untainted, and schedulable
-- Workers and Argo CD are Phase 1B/1C
+- `talos-cp-1` (VM 101), `talos-worker-1` (102), `talos-worker-2` (103), all managed by OpenTofu
+- Talos v1.14.4, Kubernetes v1.37.1
+- single-node etcd on the control plane; the control plane is untainted and schedulable
+- Argo CD is not installed yet
 
 ## Documentation
 

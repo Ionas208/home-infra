@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Generate the Talos secrets bundle and the talos-cp-1 machine config.
-#
-# Phase 1A: control plane only. Worker patches are added in Phase 1B.
+# Generate the Talos secrets bundle and one machine config per node.
 
 set -euo pipefail
 
@@ -13,6 +11,14 @@ GENERATED="$ROOT/talos/generated"
 
 CLUSTER_NAME="${CLUSTER_NAME:-home}"
 CP_IP="${CP_IP:-192.168.178.240}"
+WORKERS="${WORKERS:-talos-worker-1 talos-worker-2}"
+
+COMMON_ARGS=(
+  --with-secrets "$SECRETS"
+  --with-docs=false
+  --with-examples=false
+  --force
+)
 
 mkdir -p "$SECRETS_DIR" "$GENERATED"
 chmod 700 "$SECRETS_DIR"
@@ -25,20 +31,31 @@ else
   chmod 600 "$SECRETS"
 fi
 
-echo "Generating talos-cp-1 machine config for https://${CP_IP}:6443"
-
+echo "Generating talos-cp-1 for https://${CP_IP}:6443"
 talosctl gen config "$CLUSTER_NAME" "https://${CP_IP}:6443" \
-  --with-secrets "$SECRETS" \
+  "${COMMON_ARGS[@]}" \
   --config-patch "@$PATCHES/common.yaml" \
   --config-patch-control-plane "@$PATCHES/controlplane.yaml" \
-  --output-types controlplane,talosconfig \
-  --output "$GENERATED" \
-  --with-docs=false \
-  --with-examples=false \
-  --force
+  --output-types controlplane \
+  --output "$GENERATED/talos-cp-1.yaml"
 
-mv "$GENERATED/controlplane.yaml" "$GENERATED/talos-cp-1.yaml"
-chmod 600 "$GENERATED/talosconfig"
+for worker in $WORKERS; do
+  patch="$PATCHES/${worker#talos-}.yaml"
+  echo "Generating $worker"
+  talosctl gen config "$CLUSTER_NAME" "https://${CP_IP}:6443" \
+    "${COMMON_ARGS[@]}" \
+    --config-patch "@$PATCHES/common.yaml" \
+    --config-patch-worker "@$patch" \
+    --output-types worker \
+    --output "$GENERATED/$worker.yaml"
+done
+
+talosctl gen config "$CLUSTER_NAME" "https://${CP_IP}:6443" \
+  "${COMMON_ARGS[@]}" \
+  --output-types talosconfig \
+  --output "$GENERATED/talosconfig"
+
+chmod 600 "$GENERATED"/*.yaml "$GENERATED/talosconfig"
 
 # gen config leaves the context without endpoints/nodes, which makes every
 # later talosctl call fail with "failed to determine endpoints".
@@ -49,6 +66,7 @@ echo
 echo "Generated:"
 echo "  $SECRETS"
 echo "  $GENERATED/talos-cp-1.yaml"
+for worker in $WORKERS; do echo "  $GENERATED/$worker.yaml"; done
 echo "  $GENERATED/talosconfig"
 echo
 echo "Back up $SECRETS to Bitwarden Secrets Manager and the offline recovery kit."

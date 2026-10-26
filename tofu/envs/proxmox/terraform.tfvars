@@ -21,4 +21,22 @@ vms = {
     disk_size = 30
     role      = "controlplane"
   }
+
+  talos-worker-1 = {
+    vm_id     = 102
+    ip        = "192.168.178.241"
+    cores     = 2
+    memory    = 6144
+    disk_size = 40
+    role      = "worker"
+  }
+
+  talos-worker-2 = {
+    vm_id     = 103
+    ip        = "192.168.178.242"
+    cores     = 2
+    memory    = 6144
+    disk_size = 40
+    role      = "worker"
+  }
 }

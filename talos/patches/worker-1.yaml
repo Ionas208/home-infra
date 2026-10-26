@@ -1,0 +1,17 @@
+# Applied to talos-worker-1.
+machine:
+  type: worker
+  network:
+    interfaces:
+      - interface: ens18
+        addresses:
+          - 192.168.178.241/24
+        routes:
+          - network: 0.0.0.0/0
+            gateway: 192.168.178.1
+---
+apiVersion: v1alpha1
+kind: HostnameConfig
+auto:
+  $patch: delete
+hostname: talos-worker-1

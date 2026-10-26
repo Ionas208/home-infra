@@ -3,7 +3,7 @@ SHELL := /usr/bin/env bash
 TOFU_DIR := tofu/envs/proxmox
 TOFU     := tofu -chdir=$(TOFU_DIR)
 
-.PHONY: help init fmt validate plan apply output secrets bootstrap
+.PHONY: help init fmt validate plan apply output secrets bootstrap workers
 
 help:
 	@echo "init      - download providers and write the lock file"
@@ -12,8 +12,9 @@ help:
 	@echo "plan      - show pending changes"
 	@echo "apply     - apply pending changes"
 	@echo "output    - show environment outputs"
-	@echo "secrets   - generate Talos secrets and talos-cp-1 config"
-	@echo "bootstrap - apply Talos config, bootstrap etcd, write kubeconfig"
+	@echo "secrets   - generate Talos secrets and machine configs"
+	@echo "bootstrap - apply control-plane config, bootstrap etcd, write kubeconfig"
+	@echo "workers   - join the worker VMs to the cluster"
 
 init:
 	$(TOFU) init
@@ -39,3 +40,6 @@ secrets:
 
 bootstrap:
 	./bootstrap/02-talos.sh
+
+workers:
+	./bootstrap/03-workers.sh

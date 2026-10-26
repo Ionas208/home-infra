@@ -122,10 +122,23 @@ Verify:
 kubectl get nodes -o wide
 ```
 
+### Workers
+
+Each worker also starts in maintenance mode on DHCP. Pass both leases:
+
+```bash
+export WORKER1_MAINTENANCE_IP=<lease>
+export WORKER2_MAINTENANCE_IP=<lease>
+./bootstrap/03-workers.sh
+```
+
+The script applies each worker config, waits for its static address, and waits for
+the node to become `Ready`.
+
 ## 5. Argo CD
 
 ```bash
-./bootstrap/03-argocd.sh
+./bootstrap/04-argocd.sh
 ```
 
 This calls `home-gitops/bootstrap/argocd/install.sh`. Follow
