@@ -137,12 +137,14 @@ the node to become `Ready`.
 
 ## 5. Argo CD
 
+From `home-gitops`:
+
 ```bash
-./bootstrap/04-argocd.sh
+./bootstrap/argocd/install.sh
 ```
 
-This calls `home-gitops/bootstrap/argocd/install.sh`. Follow
-`home-gitops/docs/runbooks/bootstrap.md` for:
+The script installs the pinned `argo-cd` chart and applies the root Application.
+Follow `home-gitops/docs/runbooks/bootstrap.md` for:
 
 - pinning chart versions
 - the BSM bootstrap Secret
