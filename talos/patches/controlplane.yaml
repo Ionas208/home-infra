@@ -3,7 +3,7 @@ machine:
   type: controlplane
   certSANs:
     - talos-cp-1
-    - 192.168.178.240
+    - 192.168.178.239
   # Restore the labels that the KubeNodeConfig document would normally set,
   # because that document is removed below so that Talos derives taints from
   # cluster.allowSchedulingOnControlPlanes instead.
@@ -14,7 +14,7 @@ machine:
     interfaces:
       - interface: ens18
         addresses:
-          - 192.168.178.240/24
+          - 192.168.178.239/24
         routes:
           - network: 0.0.0.0/0
             gateway: 192.168.178.1

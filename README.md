@@ -8,17 +8,20 @@ kubeconfigs, API tokens, private keys, or unencrypted Ansible secrets.
 
 ## Status
 
-**Three-node cluster running.**
+**Single-node cluster.**
 
-- `talos-cp-1` (VM 101), `talos-worker-1` (102), `talos-worker-2` (103), all managed by OpenTofu
+- one Proxmox VE 9.2.2 host (i5-9400T, 16 GB RAM, 256 GB SSD) at `192.168.178.249`, FQDN `proxmox.fujitsu`
+- `talos-cp-1` (VM 101), managed by OpenTofu, runs the control plane and all workloads
 - Talos v1.14.4, Kubernetes v1.37.1
-- single-node etcd on the control plane; the control plane is untainted and schedulable
+- single-member etcd; the control plane is untainted and schedulable
+- the old three-node host is retired but kept intact and can be powered on later
 - Argo CD is not installed yet
 
 ## Documentation
 
 - [`docs/README.md`](docs/README.md) — documentation index
-- [`docs/bootstrap.md`](docs/bootstrap.md) — Phase 1 bootstrap runbook
+- [`docs/proxmox-host.md`](docs/proxmox-host.md) — Proxmox install, storage, OpenTofu role/token
+- [`docs/bootstrap.md`](docs/bootstrap.md) — Talos VM bootstrap runbook
 - [`docs/network.md`](docs/network.md) — address plan, DNS, ingress, QNAP, firewall
 - [`docs/inventory.md`](docs/inventory.md) — Proxmox host, QNAP, Talos VM sizing
 
@@ -28,18 +31,20 @@ kubeconfigs, API tokens, private keys, or unencrypted Ansible secrets.
 tofu/          Proxmox VM provisioning (envs/proxmox + modules/proxmox-vm)
 talos/         machine config patches and the generator script
 bootstrap/     day-0 scripts
-ansible/       Proxmox host configuration (not used yet)
+ansible/       Proxmox host configuration (planned)
 ```
 
-## Phase 1 target
+## Design
 
-- Proxmox on the current Xeon E3 host
-- three Talos VMs: one control plane, two workers
-- control-plane scheduling enabled
+- Proxmox VE 9.2.2 on the power-efficient i5-9400T host
+- one Talos VM: the control plane, with scheduling enabled
 - Argo CD bootstrap from `home-gitops`
 
-The current cluster is disposable. When the new server arrives, rebuild with the control
-plane on the new host.
+A single VM keeps the whole 16 GB box usable for workloads and avoids an etcd
+quorum that spans two VMs on the same physical host. If more capacity is needed
+later, add workers (VMs on this host or the retired host), not a second control
+plane on the same box. Do not run a two-member control plane: etcd would need
+both members up to have quorum.
 
 ## Secrets
 
@@ -58,19 +63,8 @@ The Proxmox API token comes from the environment:
 export PROXMOX_VE_API_TOKEN="tofu@pve!tofu=<secret>"
 ```
 
-## Placeholders
+## Addresses
 
-IP addresses are RFC 5737 TEST-NET-1 placeholders:
-
-| Placeholder | Example |
-|---|---|
-| `<LAN_CIDR>` | `192.0.2.0/24` |
-| `<PROXMOX_IP>` | `192.0.2.5` |
-| `<TALOS_CP_IP>` | `192.0.2.10` |
-| `<TALOS_WORKER1_IP>` | `192.0.2.11` |
-| `<TALOS_WORKER2_IP>` | `192.0.2.12` |
-| `<TRAEFIK_VIP>` | `192.0.2.50` |
-| `<DNS_VIP>` | `192.0.2.53` |
-| `<QNAP_IP>` | `192.0.2.254` |
-
-Replace them before deployment. They are not routable.
+The docs use the real private LAN (`192.168.178.0/24`) so they match the
+committed `terraform.tfvars`. Private RFC 1918 addresses are not secrets, but do
+not add public IPs, credentials, or hostnames you do not want published.

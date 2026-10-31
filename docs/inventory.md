@@ -1,8 +1,25 @@
 # Inventory
 
-> Status: Phase 0 inventory. Hardware is current; new server and UPS are pending.
+> Status: single-node Phase 1. The new host is installed; the old host is retired.
 
 ## Proxmox host (current)
+
+| Item | Value |
+|---|---|
+| CPU | Intel Core i5-9400T, 6C/6T, 35 W |
+| RAM | 16 GB |
+| OS disk | 256 GB NVMe SSD (`nvme0n1`, 238.5 GiB) |
+| VM storage | `local-lvm` LVM-thin, 140.9 GiB, 0 used |
+| ISO/backup storage | `local` directory on `pve-root`, ~60 GiB free |
+| GPU | integrated (console only) |
+| Bulk storage | QNAP over NFS (not configured yet) |
+| Hypervisor | Proxmox VE 9.2.2 (kernel 7.0.2-6-pve) |
+| Hostname | `proxmox.fujitsu` |
+| NIC / bridge | `nic0` / `vmbr0` |
+| Address | `192.168.178.249` |
+| Purpose | single-node lab; control plane and all workloads |
+
+## Retired host
 
 | Item | Value |
 |---|---|
@@ -10,18 +27,10 @@
 | RAM | 24 GB DDR3 |
 | OS disk | 256 GB SATA SSD |
 | GPU | passive GT 710 (console only) |
-| Bulk storage | none; QNAP over NFS |
-| Hypervisor | Proxmox VE, TBD |
-| Address | `192.0.2.5` placeholder |
-| Purpose | phase 1 lab host; disposable |
+| Status | powered off; kept for extra capacity |
+| Note | it used `.249`; change its address before powering it on again |
 
-## Main server (ordered)
-
-| Item | Value |
-|---|---|
-| Model/spec | TBD |
-| Role | preferred future control-plane host |
-| Status | not delivered |
+Do not run both hosts on `.249` at the same time.
 
 ## QNAP
 
@@ -36,21 +45,34 @@
 | RAID | RAID 5 |
 | Usable | ~10.9 TiB before snapshots/QTS overhead |
 | Network | 1x 2.5GbE, 1x 1GbE |
-| Address | `<LAN_PREFIX>.254` |
+| Address | `192.168.178.254` |
+| Status | not configured yet |
 | Snapshots | supported; confirm thick volume |
-| UPS | recommended; model TBD |
+| UPS | none |
 
 Keep the TS-433 as a pure NAS. Do not run Container Station or VMs on it.
 
 ## Talos VMs
 
+The single-node layout provisions exactly one VM. The worker rows are not
+provisioned; `.240` is reserved for the retired host's control plane and
+`.241`/`.242` for its workers. The new control plane uses `.239`, below the
+MetalLB pool (`.243`-`.248`).
+
 | Name | Role | vCPU | RAM | Disk | Address |
 |---|---|---|---|---|---|
-| `talos-cp-1` | control plane + workloads | 2 | 4 GB | 40 GB | `192.0.2.10` |
-| `talos-worker-1` | worker | 2 | 6 GB | 50 GB | `192.0.2.11` |
-| `talos-worker-2` | worker | 2 | 6 GB | 50 GB | `192.0.2.12` |
+| `talos-cp-1` | control plane + workloads | 6 | 14 GB | 100 GB | `192.168.178.239` |
+| `talos-worker-1` | optional future worker | 2 | 6 GB | 40 GB | `192.168.178.241` |
+| `talos-worker-2` | optional future worker | 2 | 6 GB | 40 GB | `192.168.178.242` |
 
-Totals: 6 vCPU, 16 GB RAM, 140 GB disk.
+Provisioned totals: 6 vCPU, 14 GB RAM, 100 GB disk. The remaining ~2 GB of host
+RAM covers Proxmox, LVM metadata, and headroom. Guest RAM is a ceiling; it is
+allocated on demand, not reserved up front.
+
+The control-plane VM uses one etcd member. Quorum is 1/1, so there is no split
+brain, but the host is a single point of failure. Keep etcd snapshots and Proxmox
+VM backups on the QNAP once it is configured. There is no UPS, so a power loss
+shuts the VM down uncleanly.
 
 ## QNAP shares
 

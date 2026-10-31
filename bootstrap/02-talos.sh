@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Apply the talos-cp-1 machine config, bootstrap etcd, and write a kubeconfig.
 #
-# Phase 1A: control plane only. Workers join in Phase 1B.
+# Single-node layout: the control plane also runs all workloads.
 
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CLUSTER_NAME="${CLUSTER_NAME:-home}"
-CP_IP="${CP_IP:-192.168.178.240}"
+CP_IP="${CP_IP:-192.168.178.239}"
 # Before the machine config is applied Talos runs in maintenance mode and uses
 # DHCP, so it is reachable on a lease, not on CP_IP. Pass the lease here.
 MAINTENANCE_IP="${MAINTENANCE_IP:-$CP_IP}"
