@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
-# Join the worker VMs to the existing cluster.
+# Join the optional worker VMs to the existing cluster.
+#
+# Only needed when worker VMs are added later. Generate their configs first:
+#   WORKERS="talos-worker-1 talos-worker-2" make secrets
 #
 # Each worker boots the Talos ISO into maintenance mode and gets a DHCP lease.
 # Pass those leases; the static addresses come from the machine config.
@@ -33,7 +36,7 @@ join_worker() {
   local config="$ROOT/talos/generated/$name.yaml"
 
   if [[ ! -f "$config" ]]; then
-    echo "missing $config - run talos/generate.sh first" >&2
+    echo "missing $config - run 'WORKERS=\"$name\" make secrets' first" >&2
     exit 1
   fi
 

@@ -12,9 +12,9 @@ help:
 	@echo "plan      - show pending changes"
 	@echo "apply     - apply pending changes"
 	@echo "output    - show environment outputs"
-	@echo "secrets   - generate Talos secrets and machine configs"
-	@echo "bootstrap - apply control-plane config, bootstrap etcd, write kubeconfig"
-	@echo "workers   - join the worker VMs to the cluster"
+	@echo "secrets   - generate Talos secrets/configs (WORKERS='...' for workers)"
+	@echo "bootstrap - apply control-plane config (needs MAINTENANCE_IP=<DHCP lease>)"
+	@echo "workers   - join optional worker VMs (needs WORKER1/2_MAINTENANCE_IP)"
 
 init:
 	$(TOFU) init
@@ -39,7 +39,12 @@ secrets:
 	./talos/generate.sh
 
 bootstrap:
-	./bootstrap/02-talos.sh
+	@test -n "$(MAINTENANCE_IP)" || { \
+		echo "set MAINTENANCE_IP to the Talos maintenance-mode DHCP lease" >&2; \
+		echo "e.g. make bootstrap MAINTENANCE_IP=192.168.178.90" >&2; \
+		exit 1; \
+	}
+	MAINTENANCE_IP="$(MAINTENANCE_IP)" ./bootstrap/02-talos.sh
 
 workers:
 	./bootstrap/03-workers.sh

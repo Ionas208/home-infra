@@ -10,9 +10,15 @@ CLUSTER_NAME="${CLUSTER_NAME:-home}"
 CP_IP="${CP_IP:-192.168.178.239}"
 # Before the machine config is applied Talos runs in maintenance mode and uses
 # DHCP, so it is reachable on a lease, not on CP_IP. Pass the lease here.
-MAINTENANCE_IP="${MAINTENANCE_IP:-$CP_IP}"
+MAINTENANCE_IP="${MAINTENANCE_IP:-}"
 KUBECONFIG_PATH="${KUBECONFIG_PATH:-$HOME/.kube/config}"
 CONTEXT="${CONTEXT:-home}"
+
+if [[ -z "$MAINTENANCE_IP" ]]; then
+  echo "set MAINTENANCE_IP to the Talos maintenance-mode DHCP lease" >&2
+  echo "e.g. MAINTENANCE_IP=192.168.178.90 ./bootstrap/02-talos.sh" >&2
+  exit 1
+fi
 
 export TALOSCONFIG="${TALOSCONFIG:-$ROOT/talos/generated/talosconfig}"
 CONFIG="$ROOT/talos/generated/talos-cp-1.yaml"
