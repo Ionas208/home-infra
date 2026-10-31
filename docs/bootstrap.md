@@ -187,17 +187,26 @@ exports and the backup jobs.
 
 Both use NFSv4.1 with no root squash.
 
-Remaining cluster-side work:
+Cluster side, both managed by Argo (`clusters/home/platform/local-path.yaml` and
+`clusters/home/platform/csi-driver-nfs.yaml`):
 
-1. Deploy `local-path-provisioner` and keep `local-path` the default
-   StorageClass.
-2. Deploy `csi-driver-nfs` with an `nfs-qnap` StorageClass pointing at
-   `192.168.178.254:/k8s`, mounting with `nfsvers=4.1` and
-   `reclaimPolicy: Retain`.
-3. Verify the node plugin and a test PVC:
-   ```bash
-   kubectl -n csi-nfs get pods -l app=csi-nfs-node
-   ```
+| StorageClass | Default | Backing | Reclaim |
+|---|---|---|---|
+| `local-path` | yes | node disk, `/var/local-path-provisioner` | Delete |
+| `nfs-qnap` | no | `192.168.178.254:/k8s`, NFSv4.1 | Retain |
+
+`local-path` stays the default on purpose: making NFS the default would tie
+every pod to the NAS and hang mounts whenever it is unreachable.
+
+```bash
+kubectl get storageclass
+kubectl -n local-path-storage get pods
+kubectl -n csi-nfs get pods -l app=csi-nfs-node
+```
+
+A test PVC on `nfs-qnap` kept its data across pod deletion. Because that class
+uses `Retain`, deleting a PVC leaves the PV and its directory on the NAS; delete
+the PV deliberately once the data is no longer needed.
 
 The node already runs the `siderolabs/nfs-utils` extension (`talosctl get
 extensions`). If it ever loses it, `csi-driver-nfs` fails at mount time; rebuild
