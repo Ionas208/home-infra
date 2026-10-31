@@ -61,7 +61,8 @@ below the MetalLB pool, so they cannot collide.
 ## QNAP
 
 - Address `192.168.178.254` (`.254`).
-- Not configured yet; add exports when the NAS is ready.
+- `/k8s` exported to `192.168.178.239`, `/k8s-backups` to `192.168.178.249`;
+  NFSv4.1, no root squash, explicit clients only.
 - 1x 2.5GbE and 1x 1GbE. Use 2.5GbE if the switch and Proxmox NIC support it;
   otherwise 1GbE is fine for media and backups.
 - NFSv4.1 exports to explicit node/Proxmox IPs only.

@@ -13,8 +13,9 @@ Argo CD then reconciles `home-gitops`.
 - `tofu@pve!tofu` API token with the `TofuProvisioner` role, exported as
   `PROXMOX_VE_API_TOKEN`
 - Talos ISO present in Proxmox `local` ISO storage
-- QNAP at `192.168.178.254` with NFS exports (not configured yet; only needed
-  for backups and the Kubernetes NFS storage class)
+- QNAP at `192.168.178.254` with the `k8s` and `k8s-backups` NFS exports (see
+  [`proxmox-host.md`](proxmox-host.md) §7; needed for backups and the Kubernetes
+  NFS storage class)
 - Cloudflare zone for `jonasseidl.com`
 - Bitwarden Secrets Manager machine-account token
 - `talosctl`, `kubectl`, `helm`, `tofu`, `ansible` installed locally
@@ -173,32 +174,56 @@ Follow `home-gitops/docs/runbooks/bootstrap.md` for:
 - certificate verification
 - public ingress verification
 
-## 6. Storage (after the NAS is configured)
+## 6. Storage
 
-The QNAP is not set up yet. This section waits until it is.
+The QNAP is configured; [`proxmox-host.md`](proxmox-host.md) §7 records the
+exports and the backup jobs.
 
-1. On the QNAP, create `/k8s`, `/media`, `/backups`, `/isos`.
-2. Enable NFSv4.1 and export `/k8s` to the Talos node IPs (`192.168.178.239`
-   now, plus worker IPs if you add them).
-3. Export `/backups` to the Proxmox host and the Talos nodes.
-4. Verify the Talos `nfs-utils` extension and NFS mount:
+| Share | Export | Allowed client |
+|---|---|---|
+| `k8s` | `192.168.178.254:/k8s` | `192.168.178.239` |
+| `k8s-backups` | `192.168.178.254:/k8s-backups` | `192.168.178.249` |
+
+Both use NFSv4.1 with no root squash.
+
+Remaining cluster-side work:
+
+1. Install the `siderolabs/nfs-utils` system extension. Build an Image Factory
+   schematic, upgrade the node with the resulting installer image, then record
+   the schematic ID in `tofu/envs/proxmox/terraform.tfvars` and in
+   [`proxmox-host.md`](proxmox-host.md) §4.
+2. Deploy `local-path-provisioner` and keep `local-path` the default
+   StorageClass.
+3. Deploy `csi-driver-nfs` with an `nfs-qnap` StorageClass pointing at
+   `192.168.178.254:/k8s`, mounting with `nfsvers=4.1` and
+   `reclaimPolicy: Retain`.
+4. Verify the node plugin and a test PVC:
    ```bash
    kubectl -n kube-system get pods -l app=csi-nfs-node
    ```
-5. Create a test PVC with `storageClassName: nfs-qnap`.
 
-Do not make `nfs-qnap` the default StorageClass. `local-path` remains default.
+Do not make `nfs-qnap` the default StorageClass. Prometheus and Loki stay on
+`local-path`: NFS is not supported for the Prometheus TSDB or Loki's filesystem
+store.
 
-## 7. Backups (after the NAS is configured)
+## 7. Backups
 
-Until the QNAP exists, keep local etcd snapshots and a Proxmox backup on the
-host's `local` storage.
+Host-side backups run from Proxmox to `qnap-backups`
+(`192.168.178.254:/k8s-backups`); details are in
+[`proxmox-host.md`](proxmox-host.md) §7.
 
-1. Add QNAP `/backups` as Proxmox `vzdump` storage.
-2. Schedule VM backups, especially `talos-cp-1`.
-3. Schedule etcd snapshots to `/backups/etcd`.
-4. Configure QNAP snapshots and HBS 3 offsite.
-5. Restore test.
+Done:
+
+- nightly `vzdump` of VM 101 at `03:00`, snapshot mode, zstd, 7 daily / 4 weekly /
+  2 monthly
+- etcd snapshot at `02:30`, newest 30 kept
+
+Remaining:
+
+1. Restore test: `qmrestore` to a scratch VM ID, and an etcd snapshot restore.
+2. HBS 3 offsite copy to Backblaze B2 or Cloudflare R2, with client-side
+   encryption.
+3. PVC backups (restic or K8up) once `nfs-qnap` is in place.
 
 ## 8. Adding capacity later
 

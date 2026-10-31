@@ -10,9 +10,9 @@
 | RAM | 16 GB |
 | OS disk | 256 GB NVMe SSD (`nvme0n1`, 238.5 GiB) |
 | VM storage | `local-lvm` LVM-thin, 140.9 GiB, 0 used |
-| ISO/backup storage | `local` directory on `pve-root`, ~60 GiB free |
+| ISO storage | `local` directory on `pve-root`, ~60 GiB free |
 | GPU | integrated (console only) |
-| Bulk storage | QNAP over NFS (not configured yet) |
+| Bulk storage | QNAP over NFS (`k8s`, `k8s-backups`) |
 | Hypervisor | Proxmox VE 9.2.2 (kernel 7.0.2-6-pve) |
 | Hostname | `proxmox.fujitsu` |
 | NIC / bridge | `nic0` / `vmbr0` |
@@ -46,8 +46,8 @@ Do not run both hosts on `.249` at the same time.
 | Usable | ~10.9 TiB before snapshots/QTS overhead |
 | Network | 1x 2.5GbE, 1x 1GbE |
 | Address | `192.168.178.254` |
-| Status | not configured yet |
-| Snapshots | supported; confirm thick volume |
+| Status | configured: NFSv4.1 exports, thick volumes |
+| Snapshots | enabled on the `k8s` volume only |
 | UPS | none |
 
 Keep the TS-433 as a pure NAS. Do not run Container Station or VMs on it.
@@ -70,20 +70,20 @@ RAM covers Proxmox, LVM metadata, and headroom. Guest RAM is a ceiling; it is
 allocated on demand, not reserved up front.
 
 The control-plane VM uses one etcd member. Quorum is 1/1, so there is no split
-brain, but the host is a single point of failure. Keep etcd snapshots and Proxmox
-VM backups on the QNAP once it is configured. There is no UPS, so a power loss
-shuts the VM down uncleanly.
+brain, but the host is a single point of failure. etcd snapshots and Proxmox VM
+backups run from this host to the QNAP; see
+[`proxmox-host.md`](proxmox-host.md) §7. There is no UPS, so a power loss shuts
+the VM down uncleanly.
 
 ## QNAP shares
 
-| Share | Purpose | Suggested quota |
-|---|---|---|
-| `/k8s` | dynamic PVCs, shared data | 1.5 TB |
-| `/media` | media library | 5 TB |
-| `/backups` | Proxmox, etcd, restic | 2.5 TB |
-| `/isos` | Proxmox ISOs | 100 GB |
+| Volume | Share | Size | Purpose |
+|---|---|---|---|
+| `k8s` | `/k8s` | 256 GB thick, ~20% snapshot reserve | dynamic PVCs, shared data |
+| `k8s-backups` | `/k8s-backups` | 512 GB thick, no snapshots | Proxmox, etcd, restic |
 
-Leave 10-20% free for snapshots and growth.
+Media and ISOs are not created yet; add them as further volumes when needed.
+Leave 10-20% of the pool free for snapshots and growth.
 
 ## Domain
 
