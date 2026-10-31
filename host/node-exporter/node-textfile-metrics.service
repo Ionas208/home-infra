@@ -1,0 +1,6 @@
+[Unit]
+Description=Publish Proxmox host facts to the node-exporter textfile collector
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/node-textfile-metrics.sh

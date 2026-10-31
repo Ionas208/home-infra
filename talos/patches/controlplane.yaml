@@ -21,6 +21,18 @@ machine:
 cluster:
   # Single control plane: allow workloads on it.
   allowSchedulingOnControlPlanes: true
+  # Talos binds the control-plane metrics endpoints to loopback. Expose them on
+  # the node address so Prometheus can scrape them, and only there.
+  controllerManager:
+    extraArgs:
+      bind-address: 192.168.178.239
+  scheduler:
+    extraArgs:
+      bind-address: 192.168.178.239
+  etcd:
+    extraArgs:
+      # etcd only reads this at start, so changing it needs a reboot.
+      listen-metrics-urls: http://192.168.178.239:2381
 ---
 # Drop the generated KubeNodeConfig document. Keeping it makes
 # cluster.allowSchedulingOnControlPlanes a conflict, and its control-plane

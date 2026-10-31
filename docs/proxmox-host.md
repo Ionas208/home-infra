@@ -310,7 +310,50 @@ NFS-only, and encrypt any offsite copy.
 - Neither path has been exercised yet. Run a restore test before trusting the
   backup job.
 
-## 8. Not done yet
+## 8. Host metrics
+
+Prometheus runs inside the Talos VM, so it cannot see this host. A
+`prometheus-node-exporter` on the Proxmox host covers the host's CPU, memory,
+filesystems and network, and the cluster scrapes it over the LAN.
+
+```bash
+apt-get install -y prometheus-node-exporter
+
+sed -i 's|^ARGS=.*|ARGS="--collector.textfile.directory=/var/lib/prometheus/node-exporter"|' \
+  /etc/default/prometheus-node-exporter
+systemctl restart prometheus-node-exporter
+```
+
+The textfile collector turns host facts into metrics that node-exporter cannot
+derive from `/proc`. The source lives in `host/node-exporter/`:
+
+```bash
+install -m 0750 host/node-exporter/node-textfile-metrics.sh /usr/local/sbin/
+install -m 0644 host/node-exporter/node-textfile-metrics.{service,timer} /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now node-textfile-metrics.timer
+```
+
+| Metric | Meaning |
+|--------|---------|
+| `node_reboot_required` | `1` when `/var/run/reboot-required` exists |
+| `pve_apt_upgradable` | packages with an available upgrade |
+| `pve_thinpool_used_percent` | used percentage of the `pve/data` thin pool |
+
+The thin pool is the important one: `local-lvm` is not a mounted filesystem, so
+`node_filesystem_*` cannot see it, and exhausting it breaks `vzdump` snapshots
+and new VM disks.
+
+The cluster scrapes `192.168.178.249:9100` as the `proxmox-host` job
+(`platform/observability/config/60-scrapeconfigs.yaml` in `home-gitops`). The
+endpoint has no authentication. With `pve-firewall` enabled, allow TCP `9100`
+from `192.168.178.239` only; firewall is currently disabled on this host, so the
+rule is documentation for the future.
+
+`ProxmoxRebootRequired` fires after one hour and must never auto-reboot: this
+host runs the only etcd member and every workload.
+
+## 9. Not done yet
 
 - Offsite copy. Every backup sits on one NAS with no UPS, so RAID 5 and the NAS
   itself are both single points of failure. Plan HBS 3 to Backblaze B2 or
