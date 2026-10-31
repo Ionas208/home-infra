@@ -23,6 +23,20 @@ upgradable=$(apt-get --just-print upgrade 2>/dev/null | grep -c '^Inst' || true)
 thin_used=$(lvs --noheadings --units g -o data_percent pve/data 2>/dev/null | tr -d ' ' || true)
 [[ -z "$thin_used" ]] && thin_used=0
 
+# Backup freshness. With no offsite copy and no restore test, "did last night's
+# backup actually run" is the only remaining safety signal.
+newest_mtime() {
+  local dir=$1 pattern=$2
+  local ts
+  ts=$(find "$dir" -maxdepth 1 -type f -name "$pattern" -printf '%T@\n' 2>/dev/null \
+    | sort -nr | head -1 | cut -d. -f1)
+  [[ -z "$ts" ]] && ts=0
+  printf '%s' "$ts"
+}
+
+vzdump_ts=$(newest_mtime /mnt/pve/qnap-backups/dump '*.vma.zst')
+etcd_ts=$(newest_mtime /mnt/pve/qnap-backups/etcd '*.snapshot')
+
 {
   echo '# HELP node_reboot_required 1 when /var/run/reboot-required exists.'
   echo '# TYPE node_reboot_required gauge'
@@ -33,6 +47,12 @@ thin_used=$(lvs --noheadings --units g -o data_percent pve/data 2>/dev/null | tr
   echo '# HELP pve_thinpool_used_percent Used percentage of the pve/data thin pool.'
   echo '# TYPE pve_thinpool_used_percent gauge'
   echo "pve_thinpool_used_percent $thin_used"
+  echo '# HELP pve_vzdump_last_success_timestamp_seconds mtime of the newest vzdump image.'
+  echo '# TYPE pve_vzdump_last_success_timestamp_seconds gauge'
+  echo "pve_vzdump_last_success_timestamp_seconds $vzdump_ts"
+  echo '# HELP etcd_snapshot_last_success_timestamp_seconds mtime of the newest etcd snapshot.'
+  echo '# TYPE etcd_snapshot_last_success_timestamp_seconds gauge'
+  echo "etcd_snapshot_last_success_timestamp_seconds $etcd_ts"
 } >"$TMP"
 
 mv "$TMP" "$OUT"

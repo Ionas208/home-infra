@@ -339,6 +339,12 @@ systemctl enable --now node-textfile-metrics.timer
 | `node_reboot_required` | `1` when `/var/run/reboot-required` exists |
 | `pve_apt_upgradable` | packages with an available upgrade |
 | `pve_thinpool_used_percent` | used percentage of the `pve/data` thin pool |
+| `pve_vzdump_last_success_timestamp_seconds` | mtime of the newest `vzdump` image |
+| `etcd_snapshot_last_success_timestamp_seconds` | mtime of the newest etcd snapshot |
+
+The two timestamp metrics back the `VzdumpBackupStale` and `EtcdSnapshotStale`
+alerts (36h) and the "Last VM backup" panel on the overview dashboard. With no
+offsite copy, a silently failing nightly job is the worst failure mode.
 
 The thin pool is the important one: `local-lvm` is not a mounted filesystem, so
 `node_filesystem_*` cannot see it, and exhausting it breaks `vzdump` snapshots
