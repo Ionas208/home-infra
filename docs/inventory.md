@@ -65,6 +65,11 @@ MetalLB pool (`.243`-`.248`).
 | `talos-worker-1` | optional future worker | 2 | 6 GB | 40 GB | `192.168.178.241` |
 | `talos-worker-2` | optional future worker | 2 | 6 GB | 40 GB | `192.168.178.242` |
 
+The nodes boot an Image Factory build, not the upstream release ISO. The
+schematic in `talos/schematic.yaml` adds `siderolabs/nfs-utils` for the NFS
+StorageClass; `talos/generate.sh` pins the matching installer image, and
+[`proxmox-host.md`](proxmox-host.md) §4 records the schematic ID and ISO name.
+
 Provisioned totals: 6 vCPU, 14 GB RAM, 100 GB disk. The remaining ~2 GB of host
 RAM covers Proxmox, LVM metadata, and headroom. Guest RAM is a ceiling; it is
 allocated on demand, not reserved up front.

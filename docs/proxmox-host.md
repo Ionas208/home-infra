@@ -92,32 +92,67 @@ pvesm status
 
 ## 4. Talos ISO
 
-Download the ISO directly on the Proxmox host, verify it, and place it in the
-`local` ISO storage with the name expected by `terraform.tfvars`.
+The node runs a **Talos Image Factory** build, not the upstream release ISO. The
+schematic in `talos/schematic.yaml` adds `siderolabs/nfs-utils`, which
+`csi-driver-nfs` needs on the node, and the factory bakes it into the ISO and the
+installer image.
+
+| Item | Value |
+|------|-------|
+| Schematic ID | `1b03b1684045f858942e25dda57c45df1fb8ce3479a790e041395905171a72db` |
+| ISO | `https://factory.talos.dev/image/<schematic-id>/v1.14.4/metal-amd64.iso` |
+| Installer | `factory.talos.dev/metal-installer/<schematic-id>:v1.14.4` |
+| Local name | `talos-v1.14.4-nfs-amd64.iso` |
+
+Download it directly on the Proxmox host and place it in the `local` ISO storage
+with the name expected by `terraform.tfvars`:
 
 ```bash
 cd /var/lib/vz/template/iso
 
-curl -fL --retry 3 -O \
-  https://github.com/siderolabs/talos/releases/download/v1.14.4/metal-amd64.iso
-curl -fL --retry 3 -O \
-  https://github.com/siderolabs/talos/releases/download/v1.14.4/sha256sum.txt
+SCHEMATIC=1b03b1684045f858942e25dda57c45df1fb8ce3479a790e041395905171a72db
+curl -fL --retry 3 -o talos-v1.14.4-nfs-amd64.iso \
+  "https://factory.talos.dev/image/${SCHEMATIC}/v1.14.4/metal-amd64.iso"
 
-sha256sum -c sha256sum.txt --ignore-missing
-mv metal-amd64.iso talos-v1.14.4-metal-amd64.iso
-rm sha256sum.txt
-
+file talos-v1.14.4-nfs-amd64.iso    # ISO 9660 ... 'TALOS_V1_14_4'
 pvesm list local --content iso
 ```
 
 Expected volume:
 
 ```text
-local:iso/talos-v1.14.4-metal-amd64.iso
+local:iso/talos-v1.14.4-nfs-amd64.iso
 ```
 
-This matches `iso_file` in `tofu/envs/proxmox/terraform.tfvars`. If the Talos
-version changes, update the download URL and `iso_file` together.
+This matches `iso_file` in `tofu/envs/proxmox/terraform.tfvars`.
+
+The schematic ID is a content hash of `talos/schematic.yaml`, so it changes
+whenever the extension list changes:
+
+```bash
+curl -sX POST --data-binary @talos/schematic.yaml \
+  https://factory.talos.dev/schematics
+```
+
+When the ID changes, update it in `talos/generate.sh` (`SCHEMATIC_ID`), this
+section, and `iso_file`, then re-download the ISO. Never upgrade the node with a
+plain `ghcr.io` installer image: that reverts the extensions.
+
+```bash
+talosctl --nodes 192.168.178.239 upgrade \
+  --image "factory.talos.dev/metal-installer/${SCHEMATIC}:v1.14.4" \
+  --preserve=true
+```
+
+`--preserve` keeps `EPHEMERAL`, so container images and any `local-path` data
+survive. Afterwards, confirm the node is schedulable: the `unschedulable` taint
+can outlive the upgrade even when `talosctl` reports the node uncordoned, which
+leaves every pod `Pending`.
+
+```bash
+kubectl get node talos-cp-1 -o jsonpath='{range .spec.taints[*]}{.key}{"\n"}{end}'
+kubectl uncordon talos-cp-1    # only if unschedulable is still listed
+```
 
 ## 5. OpenTofu access
 

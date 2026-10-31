@@ -12,7 +12,8 @@ Argo CD then reconciles `home-gitops`.
 - Proxmox VE 9.2.2 installed and running; see [`proxmox-host.md`](proxmox-host.md)
 - `tofu@pve!tofu` API token with the `TofuProvisioner` role, exported as
   `PROXMOX_VE_API_TOKEN`
-- Talos ISO present in Proxmox `local` ISO storage
+- Talos Image Factory ISO present in Proxmox `local` ISO storage
+  (`talos-v1.14.4-nfs-amd64.iso`; see [`proxmox-host.md`](proxmox-host.md) §4)
 - QNAP at `192.168.178.254` with the `k8s` and `k8s-backups` NFS exports (see
   [`proxmox-host.md`](proxmox-host.md) §7; needed for backups and the Kubernetes
   NFS storage class)
@@ -188,19 +189,19 @@ Both use NFSv4.1 with no root squash.
 
 Remaining cluster-side work:
 
-1. Install the `siderolabs/nfs-utils` system extension. Build an Image Factory
-   schematic, upgrade the node with the resulting installer image, then record
-   the schematic ID in `tofu/envs/proxmox/terraform.tfvars` and in
-   [`proxmox-host.md`](proxmox-host.md) §4.
-2. Deploy `local-path-provisioner` and keep `local-path` the default
+1. Deploy `local-path-provisioner` and keep `local-path` the default
    StorageClass.
-3. Deploy `csi-driver-nfs` with an `nfs-qnap` StorageClass pointing at
+2. Deploy `csi-driver-nfs` with an `nfs-qnap` StorageClass pointing at
    `192.168.178.254:/k8s`, mounting with `nfsvers=4.1` and
    `reclaimPolicy: Retain`.
-4. Verify the node plugin and a test PVC:
+3. Verify the node plugin and a test PVC:
    ```bash
    kubectl -n kube-system get pods -l app=csi-nfs-node
    ```
+
+The node already runs the `siderolabs/nfs-utils` extension (`talosctl get
+extensions`). If it ever loses it, `csi-driver-nfs` fails at mount time; rebuild
+from the Image Factory ISO described in [`proxmox-host.md`](proxmox-host.md) §4.
 
 Do not make `nfs-qnap` the default StorageClass. Prometheus and Loki stay on
 `local-path`: NFS is not supported for the Prometheus TSDB or Loki's filesystem

@@ -15,7 +15,7 @@ proxmox_insecure = true
 # `pve`; this host is named `proxmox`).
 node_name    = "proxmox"
 datastore_id = "local-lvm"
-iso_file     = "local:iso/talos-v1.14.4-metal-amd64.iso"
+iso_file     = "local:iso/talos-v1.14.4-nfs-amd64.iso"
 bridge       = "vmbr0"
 
 vms = {

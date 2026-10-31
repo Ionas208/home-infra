@@ -1,0 +1,22 @@
+# Talos Image Factory schematic for talos-cp-1.
+#
+# The factory hashes this document and serves images under the resulting ID.
+# Committed so the node's extension set is reviewable and rebuildable.
+#
+# Schematic ID:
+#   1b03b1684045f858942e25dda57c45df1fb8ce3479a790e041395905171a72db
+#
+# Installer image:
+#   factory.talos.dev/metal-installer/1b03b1684045f858942e25dda57c45df1fb8ce3479a790e041395905171a72db:v1.14.4
+# ISO:
+#   https://factory.talos.dev/image/1b03b1684045f858942e25dda57c45df1fb8ce3479a790e041395905171a72db/v1.14.4/metal-amd64.iso
+#
+# Regenerate the ID after editing:
+#   curl -sX POST --data-binary @talos/schematic.yaml \
+#     https://factory.talos.dev/schematics
+#
+# nfs-utils supplies mount.nfs, which csi-driver-nfs uses on the node.
+customization:
+  systemExtensions:
+    officialExtensions:
+      - siderolabs/nfs-utils
