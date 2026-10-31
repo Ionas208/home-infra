@@ -118,9 +118,18 @@ The script:
 
 1. applies the control-plane config (installs to `/dev/sda`, then reboots)
 2. waits for the node on `CP_IP`
-3. bootstraps etcd
-4. writes `~/.kube/config` and renames the context to `home`
+3. retries the etcd bootstrap until etcd is ready (up to 5 minutes)
+4. writes kubeconfig to `$KUBECONFIG` (default `~/.kube/config`) and selects
+   the context `home`
 5. waits for `kubectl get nodes`
+
+To write or refresh only the kubeconfig, without re-running the bootstrap:
+
+```bash
+make kubeconfig
+# or a different file:
+KUBECONFIG=/path/to/config make kubeconfig
+```
 
 Verify:
 

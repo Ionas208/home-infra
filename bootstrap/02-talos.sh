@@ -8,11 +8,13 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CLUSTER_NAME="${CLUSTER_NAME:-home}"
 CP_IP="${CP_IP:-192.168.178.239}"
+CONTEXT="${CONTEXT:-home}"
+KUBECONFIG="${KUBECONFIG:-$HOME/.kube/config}"
+export CLUSTER_NAME CP_IP CONTEXT KUBECONFIG
+
 # Before the machine config is applied Talos runs in maintenance mode and uses
 # DHCP, so it is reachable on a lease, not on CP_IP. Pass the lease here.
 MAINTENANCE_IP="${MAINTENANCE_IP:-}"
-KUBECONFIG_PATH="${KUBECONFIG_PATH:-$HOME/.kube/config}"
-CONTEXT="${CONTEXT:-home}"
 
 if [[ -z "$MAINTENANCE_IP" ]]; then
   echo "set MAINTENANCE_IP to the Talos maintenance-mode DHCP lease" >&2
@@ -25,7 +27,7 @@ CONFIG="$ROOT/talos/generated/talos-cp-1.yaml"
 
 for file in "$TALOSCONFIG" "$CONFIG"; do
   if [[ ! -f "$file" ]]; then
-    echo "missing $file - run talos/generate.sh first" >&2
+    echo "missing $file - run 'make secrets' first" >&2
     exit 1
   fi
 done
@@ -60,22 +62,29 @@ wait_for "configured Talos API on $CP_IP" 600 \
   talosctl version --nodes "$CP_IP" --talosconfig "$TALOSCONFIG"
 
 echo "==> bootstrapping etcd"
-talosctl bootstrap --nodes "$CP_IP" --talosconfig "$TALOSCONFIG"
-
-echo "==> writing kubeconfig to $KUBECONFIG_PATH (context: $CONTEXT)"
-mkdir -p "$(dirname "$KUBECONFIG_PATH")"
-talosctl kubeconfig "$KUBECONFIG_PATH" \
-  --merge=true --force \
-  --nodes "$CP_IP" --talosconfig "$TALOSCONFIG"
-
-# talosctl ignores --force-context-name here and writes admin@<cluster>.
-if ! kubectl config get-contexts -o name --kubeconfig "$KUBECONFIG_PATH" | grep -qx "$CONTEXT"; then
-  kubectl config rename-context "admin@$CLUSTER_NAME" "$CONTEXT" --kubeconfig "$KUBECONFIG_PATH"
+deadline=$((SECONDS + 300))
+while ((SECONDS < deadline)); do
+  if output=$(talosctl bootstrap --nodes "$CP_IP" --talosconfig "$TALOSCONFIG" 2>&1); then
+    echo "    ok: etcd bootstrap"
+    break
+  fi
+  if [[ "$output" == *"already bootstrapped"* ]]; then
+    echo "    ok: etcd already bootstrapped"
+    break
+  fi
+  echo "    waiting for etcd: $output"
+  sleep 5
+done
+if ((SECONDS >= deadline)); then
+  echo "timed out waiting for etcd bootstrap" >&2
+  exit 1
 fi
-kubectl config use-context "$CONTEXT" --kubeconfig "$KUBECONFIG_PATH" >/dev/null
+
+echo "==> writing kubeconfig"
+"$ROOT/bootstrap/04-kubeconfig.sh"
 
 echo "==> waiting for the Kubernetes API"
 wait_for "kubectl get nodes" 600 \
-  kubectl --context "$CONTEXT" get nodes
+  kubectl --kubeconfig "$KUBECONFIG" --context "$CONTEXT" get nodes
 
-kubectl --context "$CONTEXT" get nodes -o wide
+kubectl --kubeconfig "$KUBECONFIG" --context "$CONTEXT" get nodes -o wide
