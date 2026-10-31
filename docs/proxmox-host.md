@@ -17,7 +17,8 @@
 | NIC / bridge         | `nic0` / `vmbr0`                                   |
 | Web UI               | `https://192.168.178.249:8006`                     |
 | VM datastore         | `local-lvm`, LVM-thin, 140.9 GiB                   |
-| ISO/backup datastore | `local`, ~60 GiB free                              |
+| ISO datastore        | `local`, ~60 GiB free                              |
+| Backup storage       | `qnap-backups` → `192.168.178.254:/k8s-backups`    |
 | Talos VM             | VM 101, `talos-cp-1`, `192.168.178.239`            |
 
 ## 1. Install
@@ -82,7 +83,7 @@ The installer created the following layout:
 `local-lvm` holds the Talos VM disk. The 100 GiB VM disk is thin-provisioned and
 leaves about 40.9 GiB of thin-pool headroom for snapshots.
 
-`local` holds ISOs and temporary backups. Enable its ISO content:
+`local` holds ISOs and templates. Enable its content types:
 
 ```bash
 pvesm set local --content iso,vztmpl,backup
@@ -158,6 +159,7 @@ ip -br address
 pvesm status
 pvesm list local --content iso
 pveum user permissions 'tofu@pve!tofu'
+systemctl list-timers etcd-snapshot.timer
 ```
 
 On the workstation:
@@ -174,9 +176,112 @@ tofu plan
 
 Expected on a fresh state: one VM to create, `talos-cp-1`.
 
-## 7. Not done yet
+## 7. QNAP NFS storage and backups
 
-- QNAP NFS storage and the Proxmox backup job. The NAS is not configured yet.
+The QNAP at `192.168.178.254` exports two shares over NFSv4.1. Access is
+restricted to explicit client IPs and uses **no root squash**, because Proxmox
+writes `vzdump` files as root. A subnet-wide export would let anything on the LAN
+write as root, so do not widen it.
+
+| Share | Export | Allowed client | Use |
+|-------|--------|----------------|-----|
+| `k8s` | `192.168.178.254:/k8s` | `192.168.178.239` | Kubernetes PVCs |
+| `k8s-backups` | `192.168.178.254:/k8s-backups` | `192.168.178.249` | VM and etcd backups |
+
+| Volume | Size | Snapshots | Purpose |
+|--------|------|-----------|---------|
+| `k8s` | 256 GB thick | ~20% reserve, hourly keep 24, daily keep 14 | live PVC data |
+| `k8s-backups` | 512 GB thick | none | backups |
+
+Snapshots are not a backup: they share the array with the data they protect.
+RAID 5 covers one disk failure only, so both an offsite copy and a restore test
+are still outstanding. There is also no UPS.
+
+Verify the export from the host:
+
+```bash
+showmount -e 192.168.178.254
+
+mkdir -p /mnt/test
+mount -t nfs4 192.168.178.254:/k8s-backups /mnt/test
+touch /mnt/test/probe
+ls -ln /mnt/test/probe    # must be uid 0; 65534 means root squash is on
+umount /mnt/test && rmdir /mnt/test
+```
+
+### Proxmox storage
+
+```bash
+pvesm add nfs qnap-backups \
+  --server 192.168.178.254 \
+  --export /k8s-backups \
+  --content backup \
+  --options vers=4.1
+
+pvesm status
+```
+
+`pvesm status` must show `qnap-backups` as active. Proxmox creates a `dump/`
+directory under the export; leave it alone and keep the etcd snapshots in a
+sibling `etcd/` directory.
+
+### VM backups
+
+The scheduled job lives under **Datacenter → Backup**:
+
+| Setting | Value |
+|---------|-------|
+| Node | `proxmox` |
+| VM | 101 (`talos-cp-1`) |
+| Schedule | daily `03:00` |
+| Mode | snapshot |
+| Compression | zstd |
+| Retention | keep-daily 7, keep-weekly 4, keep-monthly 2 |
+
+Snapshot mode backs up an LVM-thin snapshot, so the VM keeps running. Manual
+test, which also reports the real backup size:
+
+```bash
+vzdump 101 --storage qnap-backups --mode snapshot --compress zstd
+ls -lh /mnt/pve/qnap-backups/dump/
+```
+
+### etcd snapshots
+
+Talos has no built-in scheduled etcd backup, so the host runs one. `talosctl`
+v1.14.4 is installed at `/usr/local/bin/talosctl`, and the cluster admin
+talosconfig lives at `/root/.talos/config`, mode `0600`. That file is a root
+credential; it belongs in the recovery kit, not in a shell history.
+
+`/usr/local/sbin/etcd-snapshot.sh` (`0750`) writes
+`etcd-YYYY-MM-DD_HHMM.snapshot` to `/mnt/pve/qnap-backups/etcd/`, keeps the
+newest 30, and exits non-zero when the NFS mount is absent. `etcd-snapshot.timer`
+runs it daily at `02:30`, before the `03:00` VM backup, so the VM image is never
+ahead of the most recent object-level restore point.
+
+```bash
+systemctl list-timers etcd-snapshot.timer
+journalctl -u etcd-snapshot.service -n 20 --no-pager
+ls -lh /mnt/pve/qnap-backups/etcd/
+```
+
+An etcd snapshot contains every Kubernetes Secret in plaintext. Keep this share
+NFS-only, and encrypt any offsite copy.
+
+### Restore pointers
+
+- VM: `qmrestore /mnt/pve/qnap-backups/dump/vzdump-qemu-101-*.vma.zst 101`
+- etcd: reset the node, then `talosctl bootstrap --recover-from=<snapshot>`
+- Neither path has been exercised yet. Run a restore test before trusting the
+  backup job.
+
+## 8. Not done yet
+
+- Offsite copy. Every backup sits on one NAS with no UPS, so RAID 5 and the NAS
+  itself are both single points of failure. Plan HBS 3 to Backblaze B2 or
+  Cloudflare R2, with client-side encryption because etcd snapshots contain
+  secrets.
+- Restore test for `vzdump` and etcd snapshots.
 - Grafana/alerting. When it exists, add a pending-reboot alert for this host (`/var/run/reboot-required` after
   unattended updates). The host is outside
   Kubernetes, so it needs a host-side check/metric.
