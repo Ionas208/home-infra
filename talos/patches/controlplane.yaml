@@ -4,12 +4,12 @@ machine:
   certSANs:
     - talos-cp-1
     - 192.168.178.239
-  # Restore the labels that the KubeNodeConfig document would normally set,
-  # because that document is removed below so that Talos derives taints from
-  # cluster.allowSchedulingOnControlPlanes instead.
+  # Restore the control-plane role label (the KubeNodeConfig document is
+  # removed below). Do not set
+  # node.kubernetes.io/exclude-from-external-load-balancers: MetalLB must
+  # advertise the VIP from this single control-plane node.
   nodeLabels:
     node-role.kubernetes.io/control-plane: ""
-    node.kubernetes.io/exclude-from-external-load-balancers: ""
   network:
     interfaces:
       - interface: ens18
