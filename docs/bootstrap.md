@@ -196,7 +196,7 @@ Remaining cluster-side work:
    `reclaimPolicy: Retain`.
 3. Verify the node plugin and a test PVC:
    ```bash
-   kubectl -n kube-system get pods -l app=csi-nfs-node
+   kubectl -n csi-nfs get pods -l app=csi-nfs-node
    ```
 
 The node already runs the `siderolabs/nfs-utils` extension (`talosctl get
